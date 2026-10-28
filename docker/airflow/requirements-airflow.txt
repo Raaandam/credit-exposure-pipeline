@@ -1,0 +1,11 @@
+pyspark==3.5.3
+pandas
+pyyaml
+sqlalchemy
+psycopg2-binary
+azure-storage-blob
+langchain-core
+langchain-openai
+pydantic>=2
+tiktoken
+python-dotenv

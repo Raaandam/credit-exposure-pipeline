@@ -1,0 +1,7 @@
+# Analyst labels for DQ breaks (target: ~150 rows). One row per break = (business_date, rule_id).
+# analyst_category must be one of: missing_source_data, mapping_error, stale_feed, duplicate,
+#   unit_or_fx_mismatch, genuine_business_change
+# Generate a blind sheet (no LLM suggestion shown) with:
+#   python -m exposure_pipeline.triage.eval --export-sheet eval/labelling_sheet.csv
+# then copy the labelled rows below. Lines starting with # are ignored.
+business_date,rule_id,analyst_category,analyst,notes

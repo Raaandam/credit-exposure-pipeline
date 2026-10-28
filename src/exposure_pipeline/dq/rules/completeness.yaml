@@ -1,0 +1,81 @@
+# Completeness: is the data there at all?
+defaults:
+  dimension: completeness
+  severity: high
+
+rules:
+  - id: FEED_CP_001
+    name: Counterparty feed landed and non-empty
+    dataset: raw.counterparties
+    check: min_row_count
+    min_rows: 1
+    severity: critical
+    description: The counterparty master snapshot must be delivered every business day.
+
+  - id: FEED_FAC_001
+    name: Facility feed landed and non-empty
+    dataset: raw.facilities
+    check: min_row_count
+    min_rows: 1
+    severity: critical
+    description: The facility snapshot must be delivered every business day.
+
+  - id: FEED_COL_001
+    name: Collateral feed landed and non-empty
+    dataset: raw.collateral
+    check: min_row_count
+    min_rows: 1
+    severity: critical
+    description: The collateral snapshot must be delivered every business day.
+
+  - id: CP_COMP_001
+    name: Counterparty internal rating populated
+    dataset: raw.counterparties
+    check: not_null
+    column: internal_rating
+    description: >
+      Unrated counterparties fall into the UNRATED band and attract punitive risk weights
+      in the RWA calculation; every counterparty should carry an internal rating.
+
+  - id: CP_COMP_002
+    name: Counterparty sector populated
+    dataset: raw.counterparties
+    check: not_null
+    column: sector
+    description: Sector is required for sector concentration reporting.
+
+  - id: CP_COMP_003
+    name: Counterparty group populated
+    dataset: raw.counterparties
+    check: not_null
+    column: group_id
+    description: Group id is required to aggregate exposure to connected counterparties.
+
+  - id: FAC_COMP_001
+    name: Facility currency populated
+    dataset: raw.facilities
+    check: not_null
+    column: currency
+    description: Without a currency the facility cannot be converted to CHF and drops out of EAD.
+
+  - id: FAC_COMP_002
+    name: Facility limit populated
+    dataset: raw.facilities
+    check: not_null
+    column: limit_amount
+    description: The limit is needed to compute undrawn amount and EAD.
+
+  - id: COL_COMP_001
+    name: Collateral market value populated
+    dataset: raw.collateral
+    check: not_null
+    column: market_value
+    severity: medium
+    description: Collateral without a valuation gives no credit risk mitigation.
+
+  - id: RAT_COMP_001
+    name: Rating change carries the new rating
+    dataset: raw.rating_changes
+    check: not_null
+    column: new_rating
+    description: A rating migration record must state the new grade.

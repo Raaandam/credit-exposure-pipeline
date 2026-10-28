@@ -1,0 +1,43 @@
+# Referential integrity: foreign keys resolve to the relevant master within the SAME business date.
+defaults:
+  dimension: referential_integrity
+  severity: high
+
+rules:
+  - id: FAC_REF_001
+    name: Facility counterparty exists in counterparty master
+    dataset: raw.facilities
+    check: foreign_key
+    column: counterparty_id
+    ref_dataset: raw.counterparties
+    ref_column: counterparty_id
+    description: Orphan facilities cannot be attributed to a group, sector or rating band (reported as UNMAPPED).
+
+  - id: COL_REF_001
+    name: Collateral facility exists in facility feed
+    dataset: raw.collateral
+    check: foreign_key
+    column: facility_id
+    ref_dataset: raw.facilities
+    ref_column: facility_id
+    severity: medium
+    description: Collateral linked to an unknown facility gives no mitigation.
+
+  - id: CP_REF_001
+    name: Ultimate parent exists in counterparty master
+    dataset: raw.counterparties
+    check: foreign_key
+    column: ultimate_parent_id
+    ref_dataset: raw.counterparties
+    ref_column: counterparty_id
+    description: Group hierarchy must be closed for connected-counterparty limit monitoring.
+
+  - id: RAT_REF_001
+    name: Rating change counterparty exists in master
+    dataset: raw.rating_changes
+    check: foreign_key
+    column: counterparty_id
+    ref_dataset: raw.counterparties
+    ref_column: counterparty_id
+    severity: medium
+    description: Rating migrations must refer to a known counterparty.

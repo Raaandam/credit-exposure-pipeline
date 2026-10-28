@@ -1,0 +1,28 @@
+# Core
+pandas>=2.1
+numpy>=1.26
+pyyaml>=6.0
+sqlalchemy>=2.0
+psycopg2-binary>=2.9
+python-dotenv>=1.0
+
+# Cloud pipeline (Spark job reads Azure Blob / ADLS via hadoop-azure jars pulled with
+# spark.jars.packages - see SPARK_JARS_PACKAGES in .env.example)
+pyspark==3.5.3
+azure-storage-blob>=12.19
+
+# LLM triage
+langchain-core>=0.3
+langchain-openai>=0.2
+pydantic>=2.6
+tiktoken>=0.7
+
+# Dashboard
+streamlit>=1.35
+altair>=5.0
+
+# Tests
+pytest>=8.0
+
+# Airflow is deliberately NOT listed: it must be installed with its own constraints file
+# and runs inside the docker/airflow image (see docker/airflow/Dockerfile).

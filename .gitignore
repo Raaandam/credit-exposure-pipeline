@@ -1,0 +1,34 @@
+# Generated data and local databases
+data/
+*.db
+*.sqlite
+
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+
+# Spark / Airflow
+spark-warehouse/
+metastore_db/
+derby.log
+logs/
+airflow/logs/
+
+# Reports produced by eval / timing scripts (README sections are updated in place)
+reports/
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/

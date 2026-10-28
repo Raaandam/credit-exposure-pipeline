@@ -1,0 +1,121 @@
+# Local cloud-like stack: Postgres (serving DB + Airflow metadata), Azurite (Azure Blob
+# emulator), Airflow (LocalExecutor), a Spark standalone cluster and the Streamlit dashboard.
+#
+#   cp .env.example .env
+#   docker compose up -d --build
+#   Airflow UI  http://localhost:8080 (admin / admin)   Dashboard http://localhost:8501
+#   Spark UI    http://localhost:8081                   Azurite   http://localhost:10000
+#
+# By default Spark runs in local[*] mode inside the Airflow container (simplest, enough for
+# these volumes). Set SPARK_MASTER_URL=spark://spark-master:7077 to use the cluster.
+
+x-airflow-common: &airflow-common
+  build:
+    context: .
+    dockerfile: docker/airflow/Dockerfile
+  env_file: .env
+  environment: &airflow-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER:-credit}:${POSTGRES_PASSWORD:-credit}@postgres:5432/airflow
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "true"
+    DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-credit}:${POSTGRES_PASSWORD:-credit}@postgres:5432/${POSTGRES_DB:-credit}
+    STORAGE_BACKEND: azurite
+    # Inside the network the SDK talks to Azurite by service name
+    AZURE_STORAGE_CONNECTION_STRING: DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:80/devstoreaccount1;
+    PROJECT_DIR: /opt/project
+    PYTHONPATH: /opt/project/src
+    DATA_DIR: /opt/project/data
+  volumes:
+    - ./dags:/opt/airflow/dags
+    - ./src:/opt/project/src
+    - ./data:/opt/project/data
+    - ./logs:/opt/airflow/logs
+  depends_on:
+    postgres:
+      condition: service_healthy
+    azurite:
+      condition: service_started
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-credit}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-credit}
+      POSTGRES_DB: ${POSTGRES_DB:-credit}
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro   # DDL applied on first start (files run in name order)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-credit}"]
+      interval: 5s
+      retries: 10
+
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:3.33.0
+    # Listens on port 80 because Spark's WASB driver always builds
+    # http://<account>.blob.core.windows.net:80 URLs. The network alias below resolves that
+    # host name to this container and Azurite derives the account from the host
+    # ("production-style URL"), so Spark needs no emulator-specific code. SDK clients use
+    # path-style URLs: http://azurite:80/devstoreaccount1 in-network, localhost:10000 from the host.
+    command: azurite-blob --blobHost 0.0.0.0 --blobPort 80 --location /data --loose --skipApiVersionCheck
+    ports: ["10000:80"]
+    volumes: [azurite:/data]
+    networks:
+      default:
+        aliases: [devstoreaccount1.blob.core.windows.net]
+
+  spark-master:
+    image: apache/spark:3.5.3
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    ports: ["7077:7077", "8081:8080"]
+
+  spark-worker:
+    image: apache/spark:3.5.3
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    environment:
+      SPARK_WORKER_CORES: "2"
+      SPARK_WORKER_MEMORY: 2g
+    depends_on: [spark-master]
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - airflow db migrate && airflow users create --username admin --password admin --firstname Admin --lastname User --role Admin --email admin@example.com || true
+    restart: "no"
+
+  airflow-webserver:
+    <<: *airflow-common
+    command: webserver
+    ports: ["8080:8080"]
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    command: scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: docker/dashboard/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-credit}:${POSTGRES_PASSWORD:-credit}@postgres:5432/${POSTGRES_DB:-credit}
+      PYTHONPATH: /app/src
+    ports: ["8501:8501"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  azurite:

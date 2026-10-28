@@ -1,0 +1,38 @@
+# Timeliness: the delivered data is for the business date being processed (stale-feed detection).
+defaults:
+  dimension: timeliness
+  severity: high
+  check: freshness
+  max_lag_days: 0
+
+rules:
+  - id: FRESH_CP_001
+    name: Counterparty snapshot is for the business date
+    dataset: raw.counterparties
+    column: as_of_date
+    description: A re-delivered older snapshot would silently report yesterday's ratings.
+
+  - id: FRESH_FAC_001
+    name: Facility snapshot is for the business date
+    dataset: raw.facilities
+    column: as_of_date
+    description: Exposure must reflect today's drawn balances.
+
+  - id: FRESH_COL_001
+    name: Collateral snapshot is for the business date
+    dataset: raw.collateral
+    column: as_of_date
+    description: Collateral values must be from today's collateral system run.
+
+  - id: FRESH_RAT_001
+    name: Rating changes are effective on the business date
+    dataset: raw.rating_changes
+    column: effective_date
+    description: The rating delta feed must contain today's migrations, not a repeat of yesterday's.
+
+  - id: FRESH_FX_001
+    name: FX snapshot is for the business date
+    dataset: raw.fx_rates
+    column: as_of_date
+    severity: critical
+    description: Stale FX would misstate every non-CHF exposure.

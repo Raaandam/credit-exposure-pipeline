@@ -1,0 +1,139 @@
+# Reconciliation
+#  * source-to-landing: the source system's control file (manifest) vs what actually landed
+#  * source-to-target : raw landed data vs curated tables vs the reporting mart
+defaults:
+  dimension: reconciliation
+  severity: critical
+
+rules:
+  # ---- source control file vs landed raw data (counts)
+  - id: REC_CP_CNT_001
+    name: Counterparty record count matches source control file
+    dataset: raw.counterparties
+    check: count_reconciliation
+    source: {manifest: counterparties, field: record_count}
+    target: {dataset: raw.counterparties}
+    description: Detects truncated or partially transferred counterparty files.
+
+  - id: REC_FAC_CNT_001
+    name: Facility record count matches source control file
+    dataset: raw.facilities
+    check: count_reconciliation
+    source: {manifest: facilities, field: record_count}
+    target: {dataset: raw.facilities}
+    description: Detects truncated or partially transferred facility files.
+
+  - id: REC_COL_CNT_001
+    name: Collateral record count matches source control file
+    dataset: raw.collateral
+    check: count_reconciliation
+    source: {manifest: collateral, field: record_count}
+    target: {dataset: raw.collateral}
+    severity: high
+    description: Detects truncated collateral files.
+
+  - id: REC_RAT_CNT_001
+    name: Rating change count matches source control file
+    dataset: raw.rating_changes
+    check: count_reconciliation
+    source: {manifest: rating_changes, field: record_count}
+    target: {dataset: raw.rating_changes}
+    severity: high
+    description: Detects lost rating migrations.
+
+  - id: REC_FX_CNT_001
+    name: FX rate count matches source control file
+    dataset: raw.fx_rates
+    check: count_reconciliation
+    source: {manifest: fx_rates, field: record_count}
+    target: {dataset: raw.fx_rates}
+    description: Detects currencies missing from the FX snapshot.
+
+  # ---- source control file vs landed raw data (control totals)
+  - id: REC_FAC_SUM_001
+    name: Facility drawn total matches source control total
+    dataset: raw.facilities
+    check: sum_reconciliation
+    source: {manifest: facilities, field: control_total_drawn}
+    target: {dataset: raw.facilities, column: drawn_amount}
+    tolerance_pct: 0.000001
+    description: Control total of drawn amounts (original currency) agreed with the loan system.
+
+  - id: REC_FAC_SUM_002
+    name: Facility limit total matches source control total
+    dataset: raw.facilities
+    check: sum_reconciliation
+    source: {manifest: facilities, field: control_total_limit}
+    target: {dataset: raw.facilities, column: limit_amount}
+    tolerance_pct: 0.000001
+    description: Control total of limits agreed with the loan system.
+
+  - id: REC_COL_SUM_001
+    name: Collateral value total matches source control total
+    dataset: raw.collateral
+    check: sum_reconciliation
+    source: {manifest: collateral, field: control_total_market_value}
+    target: {dataset: raw.collateral, column: market_value}
+    tolerance_pct: 0.000001
+    severity: high
+    description: Control total of collateral market values.
+
+  # ---- raw vs curated (source-to-target)
+  - id: S2T_CP_CNT_001
+    name: Curated counterparties equal distinct raw counterparties
+    dataset: curated.counterparty
+    feed: counterparties
+    check: count_reconciliation
+    source: {dataset: raw.counterparties, distinct: [counterparty_id]}
+    target: {dataset: curated.counterparty}
+    description: Curation may only remove exact business-key duplicates, never drop records.
+
+  - id: S2T_FAC_CNT_001
+    name: Curated facilities equal distinct raw facilities
+    dataset: curated.facility_exposure
+    feed: facilities
+    check: count_reconciliation
+    source: {dataset: raw.facilities, distinct: [facility_id]}
+    target: {dataset: curated.facility_exposure}
+    description: Every distinct facility must reach the curated exposure table (orphans included, as UNMAPPED).
+
+  # ---- curated vs reporting mart (every dimension must add up to the same total)
+  - id: S2T_EXP_SUM_001
+    name: Group aggregate EAD equals curated EAD
+    dataset: mart.exposure_aggregate
+    feed: facilities
+    check: sum_reconciliation
+    source: {dataset: curated.facility_exposure, column: ead_chf}
+    target: {dataset: mart.exposure_aggregate, column: ead_chf, where: {dimension: COUNTERPARTY_GROUP}}
+    tolerance_pct: 0.000000001
+    description: Exposure by counterparty group (limit monitoring input) must reconcile to facility level.
+
+  - id: S2T_EXP_SUM_002
+    name: Sector aggregate EAD equals curated EAD
+    dataset: mart.exposure_aggregate
+    feed: facilities
+    check: sum_reconciliation
+    source: {dataset: curated.facility_exposure, column: ead_chf}
+    target: {dataset: mart.exposure_aggregate, column: ead_chf, where: {dimension: SECTOR}}
+    tolerance_pct: 0.000000001
+    description: Sector concentration report must reconcile to facility level.
+
+  - id: S2T_EXP_SUM_003
+    name: Rating band aggregate EAD equals curated EAD
+    dataset: mart.exposure_aggregate
+    feed: facilities
+    check: sum_reconciliation
+    source: {dataset: curated.facility_exposure, column: ead_chf}
+    target: {dataset: mart.exposure_aggregate, column: ead_chf, where: {dimension: RATING_BAND}}
+    tolerance_pct: 0.000000001
+    description: RWA input by rating band must reconcile to facility level.
+
+  - id: S2T_EXP_SUM_004
+    name: Group aggregate net exposure equals curated net exposure
+    dataset: mart.exposure_aggregate
+    feed: facilities
+    check: sum_reconciliation
+    source: {dataset: curated.facility_exposure, column: net_exposure_chf}
+    target: {dataset: mart.exposure_aggregate, column: net_exposure_chf, where: {dimension: COUNTERPARTY_GROUP}}
+    tolerance_pct: 0.000000001
+    description: Collateral-adjusted exposure must reconcile between facility level and the mart.

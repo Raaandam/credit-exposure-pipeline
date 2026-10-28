@@ -1,0 +1,34 @@
+# Uniqueness: business keys appear once per snapshot.
+defaults:
+  dimension: uniqueness
+  severity: high
+
+rules:
+  - id: CP_UNQ_001
+    name: Counterparty id unique in snapshot
+    dataset: raw.counterparties
+    check: unique
+    columns: [counterparty_id]
+    description: Duplicate counterparties would double count group exposure if not removed.
+
+  - id: FAC_UNQ_001
+    name: Facility id unique in snapshot
+    dataset: raw.facilities
+    check: unique
+    columns: [facility_id]
+    description: Duplicate facilities inflate EAD; the curated layer keeps the first occurrence.
+
+  - id: COL_UNQ_001
+    name: Collateral id unique in snapshot
+    dataset: raw.collateral
+    check: unique
+    columns: [collateral_id]
+    description: Duplicate collateral overstates risk mitigation.
+
+  - id: RAT_UNQ_001
+    name: One rating change per counterparty per day
+    dataset: raw.rating_changes
+    check: unique
+    columns: [counterparty_id]
+    severity: medium
+    description: Two migrations for the same counterparty on one day are ambiguous.

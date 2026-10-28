@@ -1,0 +1,123 @@
+# Validity: are populated values allowed / plausible?
+# NULLs are ignored here on purpose - completeness rules own them, so one defect raises one break.
+defaults:
+  dimension: validity
+  severity: high
+
+rules:
+  - id: CP_VAL_001
+    name: Internal rating on master scale
+    dataset: raw.counterparties
+    check: accepted_values
+    column: internal_rating
+    values: [AAA, AA, A, BBB, BB, B, CCC, D]
+    description: Ratings must be on the internal master scale (agency codes such as Baa2 are not accepted).
+
+  - id: CP_VAL_002
+    name: Sector in reporting taxonomy
+    dataset: raw.counterparties
+    check: accepted_values
+    column: sector
+    values: [BANKS, INSURANCE, ASSET_MANAGEMENT, SOVEREIGN, ENERGY, REAL_ESTATE, INDUSTRIALS, TECHNOLOGY, HEALTHCARE, CONSUMER, UTILITIES, TRANSPORT]
+    description: Sector codes must map to the risk reporting sector taxonomy.
+
+  - id: CP_VAL_003
+    name: Country is ISO 3166 alpha-2
+    dataset: raw.counterparties
+    check: pattern
+    column: country
+    regex: "[A-Z]{2}"
+    severity: medium
+    description: Country of risk must be a two-letter ISO code.
+
+  - id: FAC_VAL_001
+    name: Facility currency has an FX rate
+    dataset: raw.facilities
+    check: accepted_values
+    column: currency
+    values_from: {dataset: raw.fx_rates, column: currency}
+    description: Every facility currency must be convertible with the day's FX snapshot.
+
+  - id: FAC_VAL_002
+    name: Facility type known
+    dataset: raw.facilities
+    check: accepted_values
+    column: facility_type
+    values: [TERM_LOAN, REVOLVER, TRADE_FINANCE, GUARANTEE, OVERDRAFT]
+    description: Facility type drives the credit conversion factor.
+
+  - id: FAC_VAL_003
+    name: Drawn amount non-negative
+    dataset: raw.facilities
+    check: range
+    column: drawn_amount
+    min: 0
+    description: Negative drawn balances indicate sign or booking errors.
+
+  - id: FAC_VAL_004
+    name: Drawn amount does not exceed limit
+    dataset: raw.facilities
+    check: compare_columns
+    left: drawn_amount
+    op: "<="
+    right: limit_amount
+    severity: medium
+    description: Overdrawn facilities are possible but rare; mass breaches usually mean a unit problem.
+
+  - id: FAC_VAL_005
+    name: Facility limit within plausible range
+    dataset: raw.facilities
+    check: range
+    column: limit_amount
+    min: 10000
+    max: 2000000000
+    description: >
+      Booking policy has no facilities below 10k or above 2bn in original currency. Values
+      outside usually mean amounts sent in thousands or in minor units (pence, cents).
+
+  - id: COL_VAL_001
+    name: Collateral haircut is a decimal fraction
+    dataset: raw.collateral
+    check: range
+    column: haircut
+    min: 0
+    max: 1
+    description: Haircuts are expressed as decimals between 0 and 1.
+
+  - id: COL_VAL_002
+    name: Collateral currency has an FX rate
+    dataset: raw.collateral
+    check: accepted_values
+    column: currency
+    values_from: {dataset: raw.fx_rates, column: currency}
+    severity: medium
+    description: Collateral must be convertible to CHF.
+
+  - id: COL_VAL_003
+    name: Collateral market value non-negative
+    dataset: raw.collateral
+    check: range
+    column: market_value
+    min: 0
+    severity: medium
+    description: Negative valuations are invalid.
+
+  - id: RAT_VAL_001
+    name: New rating on master scale
+    dataset: raw.rating_changes
+    check: accepted_values
+    column: new_rating
+    values: [AAA, AA, A, BBB, BB, B, CCC, D]
+    description: Rating migrations must use the internal master scale.
+
+  - id: RAT_VAL_002
+    name: Rating migration of at most two notches
+    dataset: curated.rating_change
+    feed: rating_changes
+    check: range
+    column: notch_change_abs
+    max: 2
+    severity: medium
+    description: >
+      Multi-notch jumps are flagged for confirmation. They can be genuine (credit event) or
+      a data problem (wrong scale, stale previous rating), so this is a warning-style rule.
